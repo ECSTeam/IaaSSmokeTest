@@ -1,0 +1,27 @@
+{
+		"remoteHost":"localhost",
+		"remoteConnectionDetails": [
+			{
+				"port":"80",
+				"protocol":"tcp",
+				"description":"test"
+			},
+			{
+				"port":"12345",
+				"protocol":"udp",
+				"description":"otherTest"
+			}	
+		],
+		"localConnectionDetails": [
+			{
+				"port":"80",
+				"protocol":"tcp",
+				"description":"test"
+			},
+			{
+				"port":"12345",
+				"protocol":"udp",
+				"description":"otherTest"
+			}	
+		]
+}

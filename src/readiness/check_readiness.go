@@ -7,6 +7,7 @@ import (
 	"net"
 	"strconv"
 	"bufio"
+	"time"
 )
 
 var configuration struct {
@@ -86,6 +87,8 @@ func openLocalPort(port string, protocol string, description string) {
 		openLocalTCP(port, description)
 	} else if protocol=="udp" {
 		openLocalUDP(port, description)
+	} else {
+		panic("invlaid protocol discovered while opening port!")
 	}
 }
 
@@ -95,23 +98,24 @@ func openLocalTCP(port string, description string) {
 	if err != nil {
 		fmt.Printf("error in setting up TCP listener on port %s used for %s.\n", port, description)
 		fmt.Println("error is ", err.Error())
-	} else {
+		return
+	} 
 	
-		resultSet.TCPListeners = resultSet.TCPListeners + 1
-		
-		defer ln.Close()
-		for {
-			conn, err := ln.Accept()
-			if err != nil {
-				fmt.Printf("error in accepting TCP connections on port %s used for %s.\n", port, description)
-				fmt.Println("error is ", err.Error())
-			} else {
-				fmt.Printf("Received message %s -> %s \n", conn.RemoteAddr(), conn.LocalAddr())
-				go handleConnection(conn)
-				resultSet.TCPRequestsReceived = resultSet.TCPRequestsReceived + 1
-			}
+	resultSet.TCPListeners = resultSet.TCPListeners + 1
+	
+	defer ln.Close()
+	for {
+		conn, err := ln.Accept()
+		if err != nil {
+			fmt.Printf("error in accepting TCP connections on port %s used for %s.\n", port, description)
+			fmt.Println("error is ", err.Error())
+		} else {
+			fmt.Printf("Received message %s -> %s \n", conn.RemoteAddr(), conn.LocalAddr())
+			go handleConnection(conn)
+			resultSet.TCPRequestsReceived = resultSet.TCPRequestsReceived + 1
 		}
 	}
+	
 	
 }
 
@@ -123,24 +127,25 @@ func openLocalUDP(port string, description string) {
 	if err != nil {
 		fmt.Printf("error in setting up UDP listener on port %s used for %s.\n", port, description)
 		fmt.Println("error is ", err.Error())
-	} else {
+		return
+	} 
 	
-		resultSet.UDPListeners = resultSet.UDPListeners + 1
-		
-		defer ln.Close()
+	resultSet.UDPListeners = resultSet.UDPListeners + 1
 	
-		buf := make([]byte, 1024)
-		for {
-			reqLen, addr, err := ln.ReadFromUDP(buf)
-			if err != nil {
-				fmt.Printf("error in accepting UDP connections on port %s used for %s.\n", port, description)
-				fmt.Println("error is ", err.Error())
-			} else {
-				fmt.Printf("Received %d byte UDP message from %s \n", reqLen, addr )
-				resultSet.UDPRequestsReceived = resultSet.UDPRequestsReceived + 1
-			}
+	defer ln.Close()
+
+	buf := make([]byte, 1024)
+	for {
+		reqLen, addr, err := ln.ReadFromUDP(buf)
+		if err != nil {
+			fmt.Printf("error in accepting UDP connections on port %s used for %s.\n", port, description)
+			fmt.Println("error is ", err.Error())
+		} else {
+			fmt.Printf("Received %d byte UDP message from %s \n", reqLen, addr )
+			resultSet.UDPRequestsReceived = resultSet.UDPRequestsReceived + 1
 		}
 	}
+	
 	
 }
 
@@ -172,26 +177,30 @@ func connectToRemotePort (port string, protocol string, description string) {
 		connectViaTCP(port, host, description)
 	} else if protocol=="udp" {
 		connectViaUDP(port, host, description)
+	} else {
+		panic("invlaid protocol discovered while attempting to connect to port!")
 	}
 }
 
 func connectViaTCP(port string, host string, description string) {
 	url := host + ":" + port
-	conn, err := net.Dial("tcp", url)
+	minute := time.Minute
+	conn, err := net.DialTimeout("tcp", url, minute)
 	if err != nil {
 		fmt.Printf("error in connecting to TCP listener at %s:%s\n", host, port)
 		fmt.Printf("error is : %s", err.Error())
+		return
+	} 
+	fmt.Fprintf(conn, "HEAD\n")
+	status, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		fmt.Printf("error in reading return stream from %s:%s\n", host, port)
+		fmt.Printf("error is : %s", err.Error())
 	} else {
-		fmt.Fprintf(conn, "HEAD\n")
-		status, err := bufio.NewReader(conn).ReadString('\n')
-		if err != nil {
-			fmt.Println("error in reading return stream from %s:%s\n", host, port)
-			fmt.Printf("error is : %s", err.Error())
-		} else {
-			fmt.Println("response = ", status)
-			resultSet.TCPResponsesReceived = resultSet.TCPResponsesReceived + 1
-		}
+		fmt.Println("response = ", status)
+		resultSet.TCPResponsesReceived = resultSet.TCPResponsesReceived + 1
 	}
+	
 }
 
 func connectViaUDP (port string, host string, description string) {
@@ -200,29 +209,28 @@ func connectViaUDP (port string, host string, description string) {
     if err != nil {
 		fmt.Printf("error in resolving remote UDP address %s:%s\n", host, port)
 		fmt.Printf("error is : %s", err.Error())
-	} else {
+		return
+	} 
  	 
-	    conn, err := net.DialUDP("udp", nil, serverAddr)
-	    if err != nil {
-			fmt.Printf("error in connecting to UDP listener at %s:%s\n", host, port)
-			fmt.Printf("error is : %s", err.Error())
-		} else {
-	 
-		    defer conn.Close()
-		    
-		    msg := "HEAD\n"
-		    buf := []byte(msg)
-		    _,err = conn.Write(buf)
-		    if err != nil {
-		        fmt.Printf("error in writing to UDP listener at %s:%s\n", host, port)
-		        fmt.Println("error is :", err.Error())
-		    } else {
-		    	fmt.Println("wrote the buffer in UDP land")
-		    }
-	    }
-	    
-	}
-	
+    conn, err := net.DialUDP("udp", nil, serverAddr)
+    if err != nil {
+		fmt.Printf("error in connecting to UDP listener at %s:%s\n", host, port)
+		fmt.Printf("error is : %s", err.Error())
+		return
+	} 
+ 
+    defer conn.Close()
+    
+    msg := "HEAD\n"
+    buf := []byte(msg)
+    _,err = conn.Write(buf)
+    if err != nil {
+        fmt.Printf("error in writing to UDP listener at %s:%s\n", host, port)
+        fmt.Println("error is :", err.Error())
+    } else {
+    	fmt.Println("wrote the buffer in UDP land")
+    }
+    	
 }
 
 func writeOutput() {
